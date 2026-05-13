@@ -2,10 +2,20 @@ import type { Paciente, PacienteExtra, Medico, Receita, ReceitaDTO } from '../ty
 
 const KEYS = {
   pacientes: 'medsystem_pacientes',
+  medicos: 'medsystem_medicos',
+  users: 'medsystem_users',
   receitas: 'medsystem_receitas',
   medicoAtivo: 'medsystem_medico_ativo',
   nextId: 'medsystem_next_id',
 };
+
+interface UserCredential {
+  id: number;
+  email: string;
+  senha: string;
+  role: 'MEDICO' | 'PACIENTE';
+  perfilId: number;
+}
 
 const DEFAULT_MEDICO: Medico = {
   id: 1,
@@ -28,6 +38,46 @@ export function getMedicoAtivo(): Medico {
   if (raw) return JSON.parse(raw);
   localStorage.setItem(KEYS.medicoAtivo, JSON.stringify(DEFAULT_MEDICO));
   return DEFAULT_MEDICO;
+}
+
+export function getMedicosList(): Medico[] {
+  const raw = localStorage.getItem(KEYS.medicos);
+  if (raw) return JSON.parse(raw);
+  const defaults = [DEFAULT_MEDICO];
+  localStorage.setItem(KEYS.medicos, JSON.stringify(defaults));
+  return defaults;
+}
+
+export function getMedicoByIdLocal(id: number): Medico | null {
+  return getMedicosList().find(m => m.id === id) ?? null;
+}
+
+export function createMedicoLocal(dto: { nome: string; cpf: string; crm: string; email: string }): Medico {
+  const lista = getMedicosList();
+  const novo: Medico = { id: nextId(), ...dto };
+  localStorage.setItem(KEYS.medicos, JSON.stringify([...lista, novo]));
+  return novo;
+}
+
+// ── Usuários ──────────────────────────────────────────────────────────────────
+
+function getUsers(): UserCredential[] {
+  const raw = localStorage.getItem(KEYS.users);
+  if (raw) return JSON.parse(raw);
+  const defaults: UserCredential[] = [{ id: DEFAULT_MEDICO.id, email: DEFAULT_MEDICO.email, senha: '123456', role: 'MEDICO', perfilId: DEFAULT_MEDICO.id }];
+  localStorage.setItem(KEYS.users, JSON.stringify(defaults));
+  return defaults;
+}
+
+export function findUserByCredentials(email: string, senha: string): UserCredential | null {
+  return getUsers().find(u => u.email === email && u.senha === senha) ?? null;
+}
+
+export function createUser(email: string, senha: string, role: 'MEDICO' | 'PACIENTE', perfilId: number): void {
+  const lista = getUsers();
+  if (lista.find(u => u.email === email)) throw new Error('E-mail já cadastrado');
+  const novo: UserCredential = { id: nextId(), email, senha, role, perfilId };
+  localStorage.setItem(KEYS.users, JSON.stringify([...lista, novo]));
 }
 
 // ── Pacientes ─────────────────────────────────────────────────────────────────

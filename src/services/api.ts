@@ -1,19 +1,48 @@
-import type { Medico, Paciente, Receita, ReceitaDTO } from '../types';
+import type { Medico, Paciente, Receita, ReceitaDTO, AuthResponse, LoginPayload, CadastroPayload } from '../types';
 import {
   getMedicoAtivo,
+  getMedicosList,
+  getMedicoByIdLocal,
+  createMedicoLocal,
   getPacientes,
   getPacienteById as getPacienteByIdLocal,
   createPacienteLocal,
   updatePacienteLocal,
   getReceitas,
   createReceitaLocal,
+  findUserByCredentials,
+  createUser,
 } from './localData';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export const login = async (payload: LoginPayload): Promise<AuthResponse> => {
+  const user = findUserByCredentials(payload.email, payload.senha);
+  if (!user) throw new Error('401 - Credenciais inválidas');
+  return { token: btoa(`${user.email}:${user.id}`), role: user.role, usuarioId: user.id, perfilId: user.perfilId };
+};
+
+export const cadastro = async (payload: CadastroPayload): Promise<void> => {
+  let perfilId: number;
+  if (payload.role === 'MEDICO') {
+    const medico = createMedicoLocal({ nome: payload.nome, cpf: payload.cpf, crm: payload.crm ?? '', email: payload.email });
+    perfilId = medico.id;
+  } else {
+    const paciente = createPacienteLocal({ nome: payload.nome, cpf: payload.cpf, email: payload.email });
+    perfilId = paciente.id;
+  }
+  createUser(payload.email, payload.senha, payload.role, perfilId);
+};
 
 // ── Médicos ───────────────────────────────────────────────────────────────────
 
-export const getMedicos = async (): Promise<Medico[]> => [getMedicoAtivo()];
+export const getMedicos = async (): Promise<Medico[]> => getMedicosList();
 
-export const getMedicoById = async (_id: number): Promise<Medico> => getMedicoAtivo();
+export const getMedicoById = async (id: number): Promise<Medico> => {
+  const m = getMedicoByIdLocal(id);
+  if (!m) return getMedicoAtivo();
+  return m;
+};
 
 // ── Pacientes ─────────────────────────────────────────────────────────────────
 
