@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getPacienteById, createReceita } from '../../services/api';
-import { getPacienteExtra } from '../../services/localData';
-import { useAuth } from '../../contexts/AuthContext';
+import { getMedicoAtivo, getPacienteById, getPacienteExtra, createReceitaLocal } from '../../services/localData';
 import type { Paciente, PacienteExtra, ItemMedicamento } from '../../types';
 
 const MEDICAMENTOS_LISTA = [
@@ -26,11 +24,10 @@ function novoItem(): ItemMedicamento {
 export default function NovaPrescricao() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session } = useAuth();
-  const medico = session?.tipo === 'medico' ? session.user : null;
+  const medico = getMedicoAtivo();
 
   const [paciente, setPaciente] = useState<Paciente | null>(null);
-  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '', alergias: [], condicoes: [] });
+  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '' });
   const [medicamentos, setMedicamentos] = useState<ItemMedicamento[]>([novoItem()]);
   const [observacoes, setObservacoes] = useState('');
   const [loading, setLoading] = useState(true);
@@ -38,15 +35,12 @@ export default function NovaPrescricao() {
   const [erro, setErro] = useState('');
 
   useEffect(() => {
-    if (!medico) { navigate('/medico/login'); return; }
     if (!id) return;
-    getPacienteById(Number(id))
-      .then(p => {
-        setPaciente(p);
-        setExtra(getPacienteExtra(p.id));
-      })
-      .catch(() => navigate('/medico/pacientes'))
-      .finally(() => setLoading(false));
+    const p = getPacienteById(Number(id));
+    if (!p) { navigate('/medico/pacientes'); return; }
+    setPaciente(p);
+    setExtra(getPacienteExtra(p.id));
+    setLoading(false);
   }, [id]);
 
   function atualizarMedicamento(itemId: string, campo: keyof ItemMedicamento, valor: string) {
@@ -55,25 +49,22 @@ export default function NovaPrescricao() {
 
   const podesSalvar = medicamentos.some(m => m.nome && m.dosagem && m.frequencia && m.duracao);
 
-  async function handleSalvar() {
-    if (!paciente || !medico) return;
+  function handleSalvar() {
+    if (!paciente) return;
     setSalvando(true);
     setErro('');
     try {
       const validos = medicamentos.filter(m => m.nome && m.dosagem && m.frequencia && m.duracao);
-      // Cada medicamento vira uma receita separada no backend
-      await Promise.all(
-        validos.map(med =>
-          createReceita({
-            medicoId: medico.id,
-            pacienteId: paciente.id,
-            medicamento: med.nome,
-            dosagem: med.dosagem,
-            frequencia: med.frequencia,
-            duracao: med.duracao,
-            observacoes: observacoes || undefined,
-          })
-        )
+      validos.forEach(med =>
+        createReceitaLocal({
+          medicoId: medico.id,
+          pacienteId: paciente.id,
+          medicamento: med.nome,
+          dosagem: med.dosagem,
+          frequencia: med.frequencia,
+          duracao: med.duracao,
+          observacoes: observacoes || undefined,
+        })
       );
       navigate(`/medico/pacientes/${paciente.id}`);
     } catch (err: unknown) {
@@ -199,28 +190,20 @@ export default function NovaPrescricao() {
         <div className="w-64 flex-shrink-0">
           <div className="bg-white border border-gray-200 rounded-lg p-5 sticky top-6">
             <h3 className="font-semibold text-gray-900 mb-4">Informações do Paciente</h3>
-            {extra.alergias.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs text-gray-500 mb-2">Alergias:</p>
-                <div className="space-y-1.5">
-                  {extra.alergias.map(a => (
-                    <div key={a} className="bg-red-50 border border-red-100 text-red-700 text-xs px-3 py-1.5 rounded-lg">{a}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {extra.condicoes.length > 0 && (
+            {extra.dataNascimento && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">Condições Crônicas:</p>
-                <div className="space-y-1.5">
-                  {extra.condicoes.map(c => (
-                    <div key={c} className="bg-amber-50 border border-amber-100 text-amber-700 text-xs px-3 py-1.5 rounded-lg">{c}</div>
-                  ))}
-                </div>
+                <p className="text-xs text-gray-500 mb-1">Data de Nascimento:</p>
+                <p className="text-sm text-gray-800">{extra.dataNascimento}</p>
               </div>
             )}
-            {extra.alergias.length === 0 && extra.condicoes.length === 0 && (
-              <p className="text-gray-400 text-xs">Nenhuma alergia ou condição registrada.</p>
+            {extra.telefone && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-1">Telefone:</p>
+                <p className="text-sm text-gray-800">{extra.telefone}</p>
+              </div>
+            )}
+            {!extra.dataNascimento && !extra.telefone && (
+              <p className="text-gray-400 text-xs">Nenhuma informação adicional registrada.</p>
             )}
           </div>
         </div>

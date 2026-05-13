@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getPacienteById, getReceitas } from '../../services/api';
-import { getPacienteExtra } from '../../services/localData';
-import { useAuth } from '../../contexts/AuthContext';
-import type { Paciente, PacienteExtra, Receita } from '../../types';
+import { getMedicoAtivo, getPacienteById, getPacienteExtra, getReceitas } from '../../services/localData';
+import type { Paciente, PacienteExtra, Receita, Medico } from '../../types';
 
 type Aba = 'informacoes' | 'prescricoes';
 
@@ -25,27 +23,23 @@ function calcularIdade(dataNascimento: string): number {
 export default function ProntuarioPaciente() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, logout } = useAuth();
-  const medico = session?.tipo === 'medico' ? session.user : null;
+  const medico: Medico = getMedicoAtivo();
 
   const [paciente, setPaciente] = useState<Paciente | null>(null);
-  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '', alergias: [], condicoes: [] });
+  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '' });
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('informacoes');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!medico) { navigate('/medico/login'); return; }
     if (!id) return;
     const numId = Number(id);
-    Promise.all([getPacienteById(numId), getReceitas()])
-      .then(([p, todasReceitas]) => {
-        setPaciente(p);
-        setExtra(getPacienteExtra(numId));
-        setReceitas(todasReceitas.filter(r => r.paciente.id === numId));
-      })
-      .catch(() => navigate('/medico/pacientes'))
-      .finally(() => setLoading(false));
+    const p = getPacienteById(numId);
+    if (!p) { navigate('/medico/pacientes'); return; }
+    setPaciente(p);
+    setExtra(getPacienteExtra(numId));
+    setReceitas(getReceitas().filter(r => r.paciente.id === numId));
+    setLoading(false);
   }, [id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">Carregando...</div>;
@@ -67,10 +61,10 @@ export default function ProntuarioPaciente() {
           </div>
           <div>
             <p className="font-bold text-sm text-gray-900">MedSystem</p>
-            <p className="text-xs text-gray-500">{medico ? `Dr. ${medico.nome} • CRM ${medico.crm}` : ''}</p>
+            <p className="text-xs text-gray-500">Dr. {medico.nome} • CRM {medico.crm}</p>
           </div>
         </div>
-        <button onClick={() => { logout(); navigate('/'); }} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm">
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -119,12 +113,20 @@ export default function ProntuarioPaciente() {
               </span>
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/medico/pacientes/${paciente.id}/prescricao`)}
-            className="bg-[#1a2535] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#253347] transition-colors flex-shrink-0"
-          >
-            Nova Prescrição
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => navigate(`/paciente/${paciente.id}/dashboard`)}
+              className="border border-[#1a2535] text-[#1a2535] px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Ver como Paciente
+            </button>
+            <button
+              onClick={() => navigate(`/medico/pacientes/${paciente.id}/prescricao`)}
+              className="bg-[#1a2535] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#253347] transition-colors"
+            >
+              Nova Prescrição
+            </button>
+          </div>
         </div>
 
         {/* Abas */}
@@ -148,37 +150,7 @@ export default function ProntuarioPaciente() {
 
         {/* Aba: Informações */}
         {abaAtiva === 'informacoes' && (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="border border-gray-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <h3 className="font-semibold text-gray-900">Alergias</h3>
-              </div>
-              {extra.alergias.length === 0
-                ? <p className="text-gray-400 text-sm">Nenhuma alergia registrada</p>
-                : <div className="space-y-2">{extra.alergias.map(a => (
-                    <div key={a} className="bg-red-50 border border-red-100 text-red-700 text-sm px-3 py-2 rounded-lg">{a}</div>
-                  ))}</div>
-              }
-            </div>
-
-            <div className="border border-gray-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <h3 className="font-semibold text-gray-900">Condições Crônicas</h3>
-              </div>
-              {extra.condicoes.length === 0
-                ? <p className="text-gray-400 text-sm">Nenhuma condição registrada</p>
-                : <div className="space-y-2">{extra.condicoes.map(c => (
-                    <div key={c} className="bg-amber-50 border border-amber-100 text-amber-700 text-sm px-3 py-2 rounded-lg">{c}</div>
-                  ))}</div>
-              }
-            </div>
-
+          <div className="grid grid-cols-1 gap-4 max-w-sm">
             <div className="border border-gray-200 rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

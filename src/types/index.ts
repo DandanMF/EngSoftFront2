@@ -64,8 +64,6 @@ export interface ReceitaDTO {
 export interface PacienteExtra {
   dataNascimento: string;
   telefone: string;
-  alergias: string[];
-  condicoes: string[];
 }
 
 // ── Formulário de prescrição (UI) ────────────────────────────────────────────

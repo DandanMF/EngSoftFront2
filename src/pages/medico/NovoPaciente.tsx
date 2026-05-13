@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPaciente } from '../../services/api';
-import { setPacienteExtra } from '../../services/localData';
-import { useAuth } from '../../contexts/AuthContext';
+import { createPacienteLocal, setPacienteExtra } from '../../services/localData';
 import { useToast } from '../../components/Toast';
 import { maskCPF, maskPhone, maskDate, onlyDigits } from '../../utils/masks';
 
 export default function NovoPaciente() {
   const navigate = useNavigate();
-  const { session } = useAuth();
   const showToast = useToast();
 
   const [nome, setNome] = useState('');
@@ -16,45 +13,9 @@ export default function NovoPaciente() {
   const [email, setEmail] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [telefone, setTelefone] = useState('');
-
-  const [alergiaInput, setAlergiaInput] = useState('');
-  const [alergias, setAlergias] = useState<string[]>([]);
-
-  const [condicaoInput, setCondicaoInput] = useState('');
-  const [condicoes, setCondicoes] = useState<string[]>([]);
-
   const [loading, setLoading] = useState(false);
 
-  if (session?.tipo !== 'medico') {
-    navigate('/medico/login');
-    return null;
-  }
-
-  function addAlergia() {
-    const val = alergiaInput.trim().toUpperCase();
-    if (val && !alergias.includes(val)) {
-      setAlergias(prev => [...prev, val]);
-      setAlergiaInput('');
-    }
-  }
-
-  function removeAlergia(a: string) {
-    setAlergias(prev => prev.filter(x => x !== a));
-  }
-
-  function addCondicao() {
-    const val = condicaoInput.trim().toUpperCase();
-    if (val && !condicoes.includes(val)) {
-      setCondicoes(prev => [...prev, val]);
-      setCondicaoInput('');
-    }
-  }
-
-  function removeCondicao(c: string) {
-    setCondicoes(prev => prev.filter(x => x !== c));
-  }
-
-  async function handleSalvar(e: React.FormEvent) {
+  function handleSalvar(e: React.FormEvent) {
     e.preventDefault();
 
     if (!nome.trim()) { showToast('Nome é obrigatório.', 'error'); return; }
@@ -63,7 +24,7 @@ export default function NovoPaciente() {
 
     setLoading(true);
     try {
-      const paciente = await createPaciente({
+      const paciente = createPacienteLocal({
         nome: nome.trim().toUpperCase(),
         cpf: onlyDigits(cpf),
         email: email.trim().toLowerCase(),
@@ -71,8 +32,6 @@ export default function NovoPaciente() {
       setPacienteExtra(paciente.id, {
         dataNascimento,
         telefone: onlyDigits(telefone),
-        alergias,
-        condicoes,
       });
       showToast('Paciente cadastrado com sucesso!', 'success');
       navigate(`/medico/pacientes/${paciente.id}`);
@@ -172,70 +131,6 @@ export default function NovoPaciente() {
               />
             </div>
           </div>
-        </div>
-
-        {/* Alergias */}
-        <div className="border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Alergias</h2>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Digite uma alergia e pressione Enter"
-              value={alergiaInput}
-              onChange={e => setAlergiaInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAlergia(); } }}
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            <button
-              type="button"
-              onClick={addAlergia}
-              className="bg-[#1a2535] text-white w-10 h-10 rounded-lg font-bold text-lg flex items-center justify-center hover:bg-[#253347] transition-colors"
-            >
-              +
-            </button>
-          </div>
-          {alergias.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {alergias.map(a => (
-                <span key={a} className="flex items-center gap-1 text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-1 rounded-full">
-                  {a}
-                  <button type="button" onClick={() => removeAlergia(a)} className="ml-1 text-red-400 hover:text-red-600">×</button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Condições Crônicas */}
-        <div className="border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Condições Crônicas</h2>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Digite uma condição crônica e pressione Enter"
-              value={condicaoInput}
-              onChange={e => setCondicaoInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCondicao(); } }}
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            <button
-              type="button"
-              onClick={addCondicao}
-              className="bg-[#1a2535] text-white w-10 h-10 rounded-lg font-bold text-lg flex items-center justify-center hover:bg-[#253347] transition-colors"
-            >
-              +
-            </button>
-          </div>
-          {condicoes.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {condicoes.map(c => (
-                <span key={c} className="flex items-center gap-1 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                  {c}
-                  <button type="button" onClick={() => removeCondicao(c)} className="ml-1 text-amber-400 hover:text-amber-600">×</button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Botões */}

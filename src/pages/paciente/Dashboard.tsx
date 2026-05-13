@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getReceitas } from '../../services/api';
-import { getPacienteExtra } from '../../services/localData';
-import { useAuth } from '../../contexts/AuthContext';
-import type { PacienteExtra, Receita } from '../../types';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getPacienteById, getPacienteExtra, getReceitas } from '../../services/localData';
+import type { PacienteExtra, Receita, Paciente } from '../../types';
 
 function calcularIdade(dataNascimento: string): number {
   if (!dataNascimento) return 0;
@@ -17,22 +15,24 @@ function calcularIdade(dataNascimento: string): number {
 }
 
 export default function DashboardPaciente() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, logout } = useAuth();
-  const paciente = session?.tipo === 'paciente' ? session.user : null;
 
-  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '', alergias: [], condicoes: [] });
+  const [paciente, setPaciente] = useState<Paciente | null>(null);
+  const [extra, setExtra] = useState<PacienteExtra>({ dataNascimento: '', telefone: '' });
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!paciente) { navigate('/paciente/login'); return; }
-    setExtra(getPacienteExtra(paciente.id));
-    getReceitas()
-      .then(todas => setReceitas(todas.filter(r => r.paciente.id === paciente.id)))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (!id) { navigate('/medico/pacientes'); return; }
+    const numId = Number(id);
+    const p = getPacienteById(numId);
+    if (!p) { navigate('/medico/pacientes'); return; }
+    setPaciente(p);
+    setExtra(getPacienteExtra(numId));
+    setReceitas(getReceitas().filter(r => r.paciente.id === numId));
+    setLoading(false);
+  }, [id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">Carregando...</div>;
   if (!paciente) return null;
@@ -40,7 +40,6 @@ export default function DashboardPaciente() {
   const cpfFormatado = paciente.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   const idade = calcularIdade(extra.dataNascimento);
 
-  // Agrupa receitas por médico para exibição
   const porMedico = receitas.reduce<Record<number, { medico: Receita['medico']; receitas: Receita[] }>>((acc, r) => {
     if (!acc[r.medico.id]) acc[r.medico.id] = { medico: r.medico, receitas: [] };
     acc[r.medico.id].receitas.push(r);
@@ -64,14 +63,14 @@ export default function DashboardPaciente() {
           </div>
         </div>
         <button
-          onClick={() => { logout(); navigate('/'); }}
+          onClick={() => navigate(`/medico/pacientes/${paciente.id}`)}
           className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              d="M11 17l-5-5m0 0l5-5m-5 5h12" />
           </svg>
-          Sair
+          Voltar ao Prontuário
         </button>
       </header>
 
@@ -93,41 +92,6 @@ export default function DashboardPaciente() {
               </div>
             </div>
           </div>
-
-          {(extra.alergias.length > 0 || extra.condicoes.length > 0) && (
-            <div className="grid grid-cols-2 gap-4 mt-5">
-              {extra.alergias.length > 0 && (
-                <div className="bg-red-50 border border-red-100 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-sm font-semibold text-red-700">Alergias</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {extra.alergias.map(a => (
-                      <span key={a} className="text-xs bg-white border border-red-200 text-red-700 px-2 py-1 rounded-full">{a}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {extra.condicoes.length > 0 && (
-                <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-sm font-semibold text-amber-700">Condições Crônicas</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {extra.condicoes.map(c => (
-                      <span key={c} className="text-xs bg-white border border-amber-200 text-amber-700 px-2 py-1 rounded-full">{c}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Prescrições */}
